@@ -1,0 +1,122 @@
+### 3. Set up Appwrite
+
+1. Create an account on [Appwrite Cloud](https://cloud.appwrite.io/) or set up your self-hosted instance
+2. Create a new project
+3. Create a new web app platform
+4. Note your Project ID and API Endpoint
+
+### 4. Create Appwrite Collections
+
+Create the following collections with appropriate attributes and permissions:
+
+#### Repos Collection
+- owner (string)
+- repo (string)
+- full_name (string) — ${owner}/${repo}
+- addedBy (string, userId)
+- github_repo_id (number)
+- hasWebhook (boolean)
+- lastSyncedAt (datetime)
+
+#### Issues Collection
+- repoId (string, reference to repos collection)
+- github_issue_id (number)
+- number (number)
+- title (string)
+- body (text)
+- state (string: 'open'/'closed')
+- createdAt (datetime)
+- updatedAt (datetime)
+- labels (array of strings)
+- html_url (string)
+
+#### Bookmarks Collection
+- userId (string)
+- issueId (string, reference to issues collection)
+- createdAt (datetime)
+
+#### Claims Collection
+- userId (string)
+- issueId (string, reference to issues collection)
+- status (string: 'active'/'completed'/'abandoned')
+- claimedAt (datetime)
+
+#### Messages Collection
+- repoId (string, reference to repos collection)
+- userId (string)
+- text (string)
+- createdAt (datetime)
+
+### 5. Create Indexes
+
+Create the following indexes for better query performance:
+
+1. On `issues` collection:
+   - Index on `repoId` + `createdAt` (for ascending sort)
+   - Index on `repoId` + `labels` (for label filter queries)
+
+2. On `bookmarks` collection:
+   - Index on `userId` (for fetching user's bookmarks)
+
+3. On `claims` collection:
+   - Index on `issueId` (for fetching an issue's claims)
+
+### 6. Set up Appwrite Functions
+
+1. Deploy the `fetchRepoIssues` function from the `appwrite/functions` directory to your Appwrite instance
+2. Set the following environment variables for the function:
+   - `GITHUB_TOKEN`: Your GitHub personal access token
+   - `DATABASES_ID`: Your Appwrite database ID
+   - `REPOS_COLLECTION_ID`: Your repos collection ID
+   - `ISSUES_COLLECTION_ID`: Your issues collection ID
+
+### 7. Set up environment variables
+
+Create a `.env` file in the project root with:
+
+```
+VITE_APPWRITE_ENDPOINT=your-appwrite-endpoint
+VITE_APPWRITE_PROJECT_ID=your-appwrite-project-id
+VITE_APPWRITE_PROJECT_NAME=BeginnerContribute
+```
+
+### 8. Run the development server
+
+```bash
+npm run dev
+```
+
+Visit `http://localhost:5173` to see your app running.
+
+## Features
+
+- **Authentication**: Email/password and GitHub OAuth login
+- **Repository Management**: Add GitHub repositories and track their issues
+- **Issue Browsing**: View issues sorted by date (oldest first)
+- **Tag Filtering**: Filter issues by their GitHub labels
+- **Bookmarking**: Save interesting issues for later
+- **Issue Claiming**: Claim issues you're working on
+- **Real-time Chat**: Discuss repositories with other users
+- **Real-time Updates**: Get notified of new issues and messages
+
+## Architecture
+
+- **Frontend**: React with Tailwind CSS
+- **Backend**: Appwrite (Authentication, Database, Realtime, Functions, Storage)
+- **API Integration**: GitHub API via Appwrite Functions
+- **State Management**: React Context API + Hooks
+
+## Security Considerations
+
+- GitHub tokens are stored in Appwrite secrets, never in the frontend
+- Appwrite Functions use server-side API keys with minimal privileges
+- User permissions ensure users can only edit their own bookmarks/claims/messages
+- Input validation and sanitization to prevent XSS attacks
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

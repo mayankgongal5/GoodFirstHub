@@ -1,0 +1,10 @@
+{
+  "name": "fetchRepoIssues",
+  "version": "1.0.0",
+  "description": "Function to fetch and sync GitHub repository issues",
+  "main": "src/main.js",
+  "dependencies": {
+    "node-appwrite": "^9.0.0",
+    "axios": "^1.6.2"
+  }
+}

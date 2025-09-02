@@ -1,0 +1,528 @@
+Project: "BeginnerContribute" — a beginner-friendly web app to help new open-source contributors discover and track GitHub issues.
+
+High-level goal:
+Build a React web app using Appwrite as the backend (auth, database, realtime, functions, storage, project-level secrets). The app's core flow:
+- A user signs up / signs in (Appwrite Auth).
+- User adds a GitHub repository URL or owner/repo name.
+- The system fetches issues from GitHub for that repo, extracts labels (tags), shows them, and lists issues by selected tag(s).
+- Issues are shown in ascending order by creation date (oldest → newest).
+- Users can claim an issue, comment, bookmark, and open a PR link when done.
+- Real-time updates: when new issues / labels appear, subscribed users get notified (Appwrite Realtime).
+- Messaging: an in-app messaging or discussion area per repo (Appwrite Database + Realtime).
+- Minimal, clean UI in React with responsive design.
+
+Non-functional requirements:
+- Use Appwrite for authentication (email/password + optional OAuth with GitHub), database collections, functions (server-side fetch / webhook handler), realtime events and storage (avatars).
+- Use GitHub REST API v3 (or GraphQL v4 if needed) to fetch issues and labels. Respect rate limits and pagination.
+- Store GitHub tokens/secrets in Appwrite project variables (never in client).
+- Provide a mechanism to either: (a) register a GitHub webhook for the repo (preferred for near-immediate updates) or (b) schedule a polling Appwrite Function as fallback.
+- UI must show tags (labels) derived from the repo; clicking a tag filters issues and displays issues ascending by created_at.
+- Implement onboarding & clear UX for beginners (one-click add repo, explain "good first issue" etc).
+- Securely manage permissions: users can only edit their bookmarks/claims/messages; repository data is viewable to all.
+
+Acceptance criteria (MVP):
+1. User can sign up / sign in with Appwrite and add a repo (owner/repo).
+2. Appwrite Function fetches issues and labels for that repo and writes them to Appwrite Database collections.
+3. Frontend lists available tags (labels) for the repo and allows filtering issues by tag.
+4. Issues list is in ascending order by issue.created_at.
+5. Users can claim/bookmark an issue and post a short comment in a repo discussion panel.
+6. New issues created on GitHub are reflected either by webhook or scheduled poll.
+7. GitHub tokens and secrets stored in Appwrite secrets; no tokens in frontend.
+
+Deliverables:
+- React SPA (TypeScript preferred) with components: AddRepo, RepoDashboard, IssuesList, IssueCard, TagsFilter, RepoChat/Messaging, Profile.
+- Appwrite project config: Collections, Indexes, Functions (source code), Webhook registration code or docs.
+- README: env variables, setup, deploy steps, architecture diagram, security considerations.
+- Postman or curl examples for Appwrite Functions where applicable.
+
+Extra credit features:
+- Github OAuth so users can optionally log in with GitHub and have personal token-based operations (claiming issues via bot comment, registering webhooks).
+- “Follow” / notification preferences (email via Appwrite functions or Realtime to UI).
+- Auto-suggest candidate issues for “good-first-issue” based on labels, recent activity, and issue body size.
+
+Roadmap — step-by-step (MVP → v1 → v2). Each milestone shows tasks, Appwrite entities, React components, and recommended architecture.
+Overview architecture (short)
+
+Frontend: React SPA (TypeScript + Vite / Create React App) using Appwrite JS SDK.
+
+Backend: Appwrite (self-hosted or Appwrite Cloud) providing Auth, Database, Realtime, Storage, Functions, and project secrets.
+
+GitHub integration: Appwrite Functions will call GitHub API using stored tokens. Use GitHub webhooks (preferred) or scheduled poller (cron) implemented as Appwrite Functions.
+
+Hosting: Vercel/Netlify for React; Appwrite on your server or cloud instance.
+
+Milestone 0 — Prep (1–2 days)
+
+Tasks:
+
+Create Appwrite project.
+
+Create Appwrite API keys / configure OAuth if you want GitHub login later.
+
+Create GitHub OAuth app (optional) — note client id/secret will go to Appwrite secrets.
+
+Create React project skeleton (TypeScript), install Appwrite SDK.
+
+Deliverables:
+
+Appwrite project and initial React app connected to Appwrite (auth flows work).
+
+Milestone 1 — MVP: Add repo + fetch issues + show tags (1–2 weeks)
+
+Goal: Basic flow to add repo and view issues + labels.
+
+Appwrite Database design (collections + fields)
+
+repos collection
+
+owner (string)
+
+repo (string)
+
+full_name (string) — ${owner}/${repo}
+
+addedBy (userId)
+
+github_repo_id (number)
+
+hasWebhook (bool)
+
+lastSyncedAt (datetime)
+
+issues collection
+
+repoId (ref to repos document id)
+
+github_issue_id (number)
+
+number (number) — GitHub issue number
+
+title (string)
+
+body (string, text)
+
+state (open/closed)
+
+createdAt (datetime) — GitHub created_at
+
+updatedAt (datetime)
+
+labels (array of strings) — e.g., ["good first issue", "bug"]
+
+html_url (string) — link to issue
+
+Indexes:
+
+index on repoId + createdAt (for ascending sort)
+
+index on repoId + labels (for label filter queries)
+
+labels collection (optional: denormalized)
+
+repoId, name, color, count
+
+bookmarks / claims collection
+
+userId, issueId, status, claimedAt
+
+messages collection (for repo discussions)
+
+repoId, userId, text, createdAt
+
+Appwrite Functions
+
+fetchRepoIssues (Node.js/TypeScript)
+
+Input: repo owner, repo name.
+
+Calls GitHub API /repos/{owner}/{repo}/issues?state=open&per_page=100&page=... (handle pagination).
+
+Extracts labels and issues; upserts them into issues collection.
+
+Updates labels collection.
+
+Stores repos.lastSyncedAt.
+
+Should be callable from the client (with Appwrite function execute permission) or triggered server-side.
+
+setupWebhook (Node.js)
+
+Creates a webhook on GitHub for issues events (requires a GitHub token with repo permissions).
+
+Webhook target: an Appwrite Function endpoint (you can create an Appwrite Function with HTTP trigger to accept GitHub webhook payload).
+
+Save webhook id to repos.hasWebhook.
+
+webhookHandler (HTTP function)
+
+Receives GitHub webhook payloads for issues and issue_comment.
+
+Validates signature (use the webhook secret saved in Appwrite secrets).
+
+Updates issues collection or creates new entries.
+
+Frontend components (MVP)
+
+AddRepoModal — input: owner/repo or GitHub URL. Validates and triggers fetchRepoIssues function.
+
+RepoDashboard — shows tags (labels) and stats.
+
+TagsFilter — lists repo labels and counts; clicking filters IssuesList.
+
+IssuesList — queries Appwrite Database for issues of a repo ordered ascending by createdAt.
+
+IssueCard — shows title, labels, created date and link to GitHub; action: bookmark/claim.
+
+UX details
+
+After adding a repo, show progress (fetching issues). Show errors if repo not found or permission issues.
+
+Explain “What is a tag/label?” and highlight “good first issue”.
+
+Acceptance
+
+Add a repo, see tags, click tag, list issues sorted ascending by creation date.
+
+Milestone 2 — Real-time + Messaging + Bookmark/Claim (1–2 weeks)
+
+Goal: add realtime updates, in-app messaging for a repo, and user actions.
+
+Appwrite Realtime
+
+Use Appwrite Realtime subscriptions to watch issues, messages, bookmarks changes for a repo and update UI instantly.
+
+Messaging
+
+Simple messages collection per repo (see collection above). Use Realtime to update message stream.
+
+Message schema: repoId, userId, displayName, text, createdAt.
+
+Claiming / Booking
+
+When a user claims an issue:
+
+Create claims doc linked to issueId.
+
+Optionally post a comment on GitHub (requires user's GitHub token or a bot token stored securely) to indicate “claimed by @username”.
+
+Ensure only one active claim per issue or implement multi-claim with statuses.
+
+UI additions
+
+RepoChat component (message input, message list).
+
+ClaimButton on IssueCard with confirmation.
+
+Milestone 3 — GitHub OAuth, Webhooks, Notifications (1–2 weeks)
+
+Goal: polish GitHub integration and user-specific features.
+
+GitHub OAuth
+
+Implement GitHub login (Appwrite supports OAuth providers; set up GitHub OAuth client id/secret in Appwrite).
+
+When user logs in with GitHub, store their GitHub access token server-side (Appwrite user prefs or secrets via Functions).
+
+With user token:
+
+Allow posting comments as the user.
+
+Allow registering webhooks on repos where the user has admin permissions.
+
+Rate-limit user-specific calls responsibly.
+
+Webhooks & Polling
+
+For public repos you don't control, polling is an option. For repos where the user is admin, register a webhook using setupWebhook.
+
+Create a scheduled Appwrite Function pollAllRepos that:
+
+Runs every X minutes (Appwrite cron).
+
+For each repo without webhook, call GitHub API to fetch new issues since lastSyncedAt.
+
+Notifications
+
+Use Realtime to push UI notifications.
+
+Optionally implement email notifications via Appwrite Functions (use third-party SMTP providers API key in project secrets).
+
+Milestone 4 — polish & deployment (1 week)
+
+Add search, sorting, pagination.
+
+Add user profile with bookmarks and claimed issues.
+
+Add onboarding and help modals.
+
+Set up CI/CD: frontend build + deploy on Vercel; Appwrite functions deployed to Appwrite function registry (or linked Git repo).
+
+Hardening security, rate-limiting, logging.
+
+Data model & index examples (Appwrite)
+
+issues index: uniqueKey: (repoId, github_issue_id) — upsert by github_issue_id.
+
+Query example: to list issues for repoId sorted ascending:
+
+Query: orderAsc('createdAt') and equal('repoId', repoId)
+
+Example Appwrite Function (Node.js pseudocode) — fetch issues and upsert
+// fetchRepoIssues function (Node/TS)
+const fetch = require('node-fetch');
+const sdk = require('node-appwrite');
+
+const client = new sdk.Client();
+client
+  .setEndpoint(process.env.APPWRITE_ENDPOINT)
+  .setProject(process.env.APPWRITE_PROJECT_ID)
+  .setKey(process.env.APPWRITE_API_KEY);
+
+const databases = new sdk.Databases(client);
+
+async function handler({ owner, repo }) {
+  const token = process.env.GITHUB_APP_TOKEN; // or per-user token passed in
+  let page = 1;
+  const per_page = 100;
+  while(true) {
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues?state=open&per_page=${per_page}&page=${page}`, {
+      headers: { Authorization: `token ${token}`, 'User-Agent': 'BeginnerContributeApp' }
+    });
+    const issues = await res.json();
+    if (!Array.isArray(issues) || issues.length === 0) break;
+    for (const gh of issues) {
+      // skip PRs if desired: PRs have `pull_request` field
+      // upsert into Appwrite `issues` collection using unique github_issue_id
+      const payload = {
+        repoId: "<repo_doc_id>", 
+        github_issue_id: gh.id,
+        number: gh.number,
+        title: gh.title,
+        body: gh.body || '',
+        state: gh.state,
+        createdAt: gh.created_at,
+        updatedAt: gh.updated_at,
+        labels: gh.labels.map(l => l.name),
+        html_url: gh.html_url
+      };
+      // use databases.createDocument or updateDocument; you must first search if exists and then update/create
+      // (pseudocode)
+    }
+    if (issues.length < per_page) break;
+    page++;
+  }
+}
+
+Security & Operational notes
+
+Store GitHub PATs / OAuth secrets in Appwrite project variables (Environment Variables / secrets). NEVER expose them to client.
+
+Validate GitHub webhook signatures using webhook secret.
+
+Respect GitHub rate limits: implement retry/backoff and pagination. Use conditional requests with If-Modified-Since or ETag where possible.
+
+Appwrite Functions should run with minimal privileges; use server-side API keys stored securely.
+
+Sanitize user input stored in DB (XSS prevention) and escape displayed content in UI.
+
+For public deployments, use HTTPS, change Appwrite default settings, and enforce CORS only for your domains.
+
+Deployment checklist
+
+Appwrite: host on VPS (DigitalOcean/Azure/GCP) or Appwrite Cloud; set domain, SSL, and backups.
+
+React: build and host on Vercel/Netlify.
+
+Environment:
+
+APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY
+
+GITHUB_APP_TOKEN (server-side)
+
+GITHUB_WEBHOOK_SECRET
+
+CI pipeline: run tests, build, deploy.
+
+Testing plan
+
+Unit tests: components, functions.
+
+Integration tests: Appwrite function that calls GitHub API (mock GitHub).
+
+E2E: add repo → issues appear → claim issue → comment posted.
+
+Load testing: number of repos, issues, users; check function runtime and rate limits.
+
+Roadmap timeline (example)
+
+Week 1: Setup, Appwrite + React skeleton, MVP DB collections, fetchRepoIssues function.
+
+Week 2: Frontend pages, tag filter, ascending sort, basic UI polish.
+
+Week 3: Realtime updates, messaging, claim/bookmark features.
+
+Week 4: GitHub OAuth + webhook registration + notifications.
+
+Week 5: polish, tests, docs, deploy.
+
+UX copy & onboarding ideas
+
+When adding repo, show friendly message: “We’ll fetch issues and labels — this may take a minute.”
+
+Use microcopy explaining labels: “Good First Issue — great for your first contribution!”
+
+Provide one-click “Open in GitHub” and “Create Pull Request” CTAs for each issue.
+
+Example queries your frontend will perform (Appwrite SDK)
+
+Get labels for repoId -> query labels / or compute labels from issues (distinct).
+
+Get issues with equal('repoId', repoId) and orderAsc('createdAt').
+
+Filter by label: add equal('labels', 'good first issue') (Appwrite supports array contains queries).
+
+Next steps I can help with (pick any)
+
+Generate React component templates (TypeScript + Appwrite SDK) for AddRepo, IssuesList, TagsFilter.
+
+Write the full Appwrite Function code for fetch/poller/webhook handler.
+
+Create DB migration script and collection definitions (JSON) ready for import.
+
+Draft README and deploy scripts for Appwrite + Vercel.
+
+
+--
+Example Appwrite Function (Node.js pseudocode) — fetch issues and upsert
+// fetchRepoIssues function (Node/TS)
+const fetch = require('node-fetch');
+const sdk = require('node-appwrite');
+
+const client = new sdk.Client();
+client
+  .setEndpoint(process.env.APPWRITE_ENDPOINT)
+  .setProject(process.env.APPWRITE_PROJECT_ID)
+  .setKey(process.env.APPWRITE_API_KEY);
+
+const databases = new sdk.Databases(client);
+
+async function handler({ owner, repo }) {
+  const token = process.env.GITHUB_APP_TOKEN; // or per-user token passed in
+  let page = 1;
+  const per_page = 100;
+  while(true) {
+    const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/issues?state=open&per_page=${per_page}&page=${page}`, {
+      headers: { Authorization: `token ${token}`, 'User-Agent': 'BeginnerContributeApp' }
+    });
+    const issues = await res.json();
+    if (!Array.isArray(issues) || issues.length === 0) break;
+    for (const gh of issues) {
+      // skip PRs if desired: PRs have `pull_request` field
+      // upsert into Appwrite `issues` collection using unique github_issue_id
+      const payload = {
+        repoId: "<repo_doc_id>", 
+        github_issue_id: gh.id,
+        number: gh.number,
+        title: gh.title,
+        body: gh.body || '',
+        state: gh.state,
+        createdAt: gh.created_at,
+        updatedAt: gh.updated_at,
+        labels: gh.labels.map(l => l.name),
+        html_url: gh.html_url
+      };
+      // use databases.createDocument or updateDocument; you must first search if exists and then update/create
+      // (pseudocode)
+    }
+    if (issues.length < per_page) break;
+    page++;
+  }
+}
+
+Security & Operational notes
+
+Store GitHub PATs / OAuth secrets in Appwrite project variables (Environment Variables / secrets). NEVER expose them to client.
+
+Validate GitHub webhook signatures using webhook secret.
+
+Respect GitHub rate limits: implement retry/backoff and pagination. Use conditional requests with If-Modified-Since or ETag where possible.
+
+Appwrite Functions should run with minimal privileges; use server-side API keys stored securely.
+
+Sanitize user input stored in DB (XSS prevention) and escape displayed content in UI.
+
+For public deployments, use HTTPS, change Appwrite default settings, and enforce CORS only for your domains.
+
+Deployment checklist
+
+Appwrite: host on VPS (DigitalOcean/Azure/GCP) or Appwrite Cloud; set domain, SSL, and backups.
+
+React: build and host on Vercel/Netlify.
+
+Environment:
+
+APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY
+
+GITHUB_APP_TOKEN (server-side)
+
+GITHUB_WEBHOOK_SECRET
+
+CI pipeline: run tests, build, deploy.
+
+Testing plan
+
+Unit tests: components, functions.
+
+Integration tests: Appwrite function that calls GitHub API (mock GitHub).
+
+E2E: add repo → issues appear → claim issue → comment posted.
+
+Load testing: number of repos, issues, users; check function runtime and rate limits.
+
+Roadmap timeline (example)
+
+Week 1: Setup, Appwrite + React skeleton, MVP DB collections, fetchRepoIssues function.
+
+Week 2: Frontend pages, tag filter, ascending sort, basic UI polish.
+
+Week 3: Realtime updates, messaging, claim/bookmark features.
+
+Week 4: GitHub OAuth + webhook registration + notifications.
+
+Week 5: polish, tests, docs, deploy.
+
+UX copy & onboarding ideas
+
+When adding repo, show friendly message: “We’ll fetch issues and labels — this may take a minute.”
+
+Use microcopy explaining labels: “Good First Issue — great for your first contribution!”
+
+Provide one-click “Open in GitHub” and “Create Pull Request” CTAs for each issue.
+
+Example queries your frontend will perform (Appwrite SDK)
+
+Get labels for repoId -> query labels / or compute labels from issues (distinct).
+
+Get issues with equal('repoId', repoId) and orderAsc('createdAt').
+
+Filter by label: add equal('labels', 'good first issue') (Appwrite supports array contains queries).
+
+Next steps I can help with (pick any)
+
+Generate React component templates (TypeScript + Appwrite SDK) for AddRepo, IssuesList, TagsFilter.
+
+Write the full Appwrite Function code for fetch/poller/webhook handler.
+
+Create DB migration script and collection definitions (JSON) ready for import.
+
+Draft README and deploy scripts for Appwrite + Vercel.
+
+
+---
+
+If you want, I’ll **immediately** generate one of the following next:
+- A full **React + Appwrite starter repo structure** (folder list + key files) with skeleton TSX components and sample Appwrite SDK calls.  
+- The exact **Appwrite Function code** (Node.js TypeScript) for `fetchRepoIssues` including pagination and upsert logic.  
+- A **detailed DB collection JSON** that you can import into Appwrite (collections + attributes + indexes).
+
+Pick one and I’ll produce it right away (I won’t ask for more details — I’ll make reasonable assumptions: TypeScript React + Appwrite SDK v8 style). Which do you want first?
