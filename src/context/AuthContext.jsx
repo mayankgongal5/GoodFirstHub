@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { account } from '../lib/appwrite';
-import { ID } from 'appwrite';
+import { ID, OAuthProvider } from 'appwrite';
 
 const AuthContext = createContext();
 
@@ -73,10 +73,16 @@ export function AuthProvider({ children }) {
   const loginWithGitHub = async () => {
     try {
       // Get the current URL for redirection
-      const redirectUrl = window.location.href;
+      const successUrl = `${window.location.origin}/home`; // Redirect to home on success
+      const failureUrl = window.location.href; // Stay on the same page on failure
       
       // Create OAuth session with GitHub
-      account.createOAuth2Session('github', redirectUrl, redirectUrl);
+      await account.createOAuth2Session(
+        OAuthProvider.Github, 
+        successUrl, 
+        failureUrl,
+        ['repo', 'user'] // Requesting access to repo and user information
+      );
       // Note: This will redirect the user to GitHub for authentication
     } catch (error) {
       console.error('GitHub login failed', error);

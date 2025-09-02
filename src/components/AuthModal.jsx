@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Mail, Lock, User, Eye, EyeOff } from 'lucide-react';
+import { X, Mail, Lock, User, Eye, EyeOff, Github } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
@@ -16,7 +16,7 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const { login, register } = useAuth();
+  const { login, register, loginWithGitHub } = useAuth();
   const navigate = useNavigate();
 
   const handleInputChange = (e) => {
@@ -190,6 +190,29 @@ const AuthModal = ({ isOpen, onClose, initialMode = 'login' }) => {
                 whileTap={{ scale: 0.98 }}
               >
                 {loading ? 'Processing...' : (mode === 'login' ? 'Sign In' : 'Create Account')}
+              </motion.button>
+
+              {/* Divider */}
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-white/20"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-black/20 backdrop-blur-sm text-white/70">Or continue with</span>
+                </div>
+              </div>
+
+              {/* GitHub Login Button */}
+              <motion.button
+                type="button"
+                onClick={loginWithGitHub}
+                disabled={loading}
+                className="w-full py-3 px-4 bg-gray-800 text-white font-semibold rounded-xl hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <Github size={20} />
+                <span>Continue with GitHub</span>
               </motion.button>
             </form>
 
